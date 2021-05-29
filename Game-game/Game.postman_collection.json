@@ -1,0 +1,335 @@
+{
+	"info": {
+		"_postman_id": "a890e263-9e82-4615-b86d-e39245d00edc",
+		"name": "Game",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "resolvers",
+			"item": [
+				{
+					"name": "game",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"import Game from \"../../models/Game\";\r",
+									"import { response } from \"express\";\r",
+									"\r",
+									"export default {\r",
+									"    Query: {\r",
+									"        game: (root, args) => {\r",
+									"            return new Promise((resolve, reject) => {\r",
+									"                Game.findOne(args).exec((error, response)=> {\r",
+									"                    error ? reject(error) : resolve(response);\r",
+									"                })\r",
+									"            })\r",
+									"        },\r",
+									"        games: () => {\r",
+									"            return new Promise((resolve, reject) => {\r",
+									"                Game.find({}).populate().exec((error, response) => {\r",
+									"                    error ? reject(error) : resolve(response);\r",
+									"                })\r",
+									"            })\r",
+									"        }\r",
+									"    },\r",
+									"    Mutation: {\r",
+									"        addGame: (root, {name, description, imageUrl, price}) => {\r",
+									"            const newGame = new Game({name, description, imageUrl, price});\r",
+									"            return new Promise((resolve, reject) => {\r",
+									"                newGame.save((error, response) => {\r",
+									"                    error ? reject(error) : resolve(response);\r",
+									"                })\r",
+									"            })\r",
+									"        },\r",
+									"        deleteGame: (root, {_id}) => {\r",
+									"            return new Promise((resolve, reject) => {\r",
+									"                Game.findByIdAndRemove({_id}).exec((error, response) => {\r",
+									"                    error ? reject(error): resolve(response);\r",
+									"                })\r",
+									"            })\r",
+									"        },\r",
+									"        editGame: (root, {_id, name, description, imageUrl, price}) => {\r",
+									"            return new Promise((resolve, reject) => {\r",
+									"                Game.findByIdAndUpdate({_id}, {$set: {name, description, imageUrl, price}}, {new: true}).exec((error, response) => {\r",
+									"                    error ? reject(error) : resolve(response);\r",
+									"                })\r",
+									"            })\r",
+									"        }\r",
+									"    }\r",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "game",
+							"host": [
+								"game"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "user",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"import User from \"../../models/User\";\r",
+									"\r",
+									"// bcrypt is used to crypt passwords\r",
+									"import bcrypt from \"bcrypt\";\r",
+									"// jsonwebtoken is used for authentication\r",
+									"import jsonwebtoken from \"jsonwebtoken\";\r",
+									"\r",
+									"// validator is used for validating fields and handling custom errors with ValidationError\r",
+									"import validator from 'validator';\r",
+									"import ValidationError from '../ValidationError';\r",
+									"\r",
+									"import dotenv from \"dotenv\";\r",
+									"dotenv.config();\r",
+									"\r",
+									"export default {\r",
+									"    Query: {\r",
+									"        user: (root, args) => {\r",
+									"            return new Promise((resolve, reject) => {\r",
+									"                User.findOne(args).exec((error, response)=> {\r",
+									"                    error ? reject(error) : resolve(response);\r",
+									"                })\r",
+									"            })\r",
+									"        },\r",
+									"        users: () => {\r",
+									"            return new Promise((resolve, reject) => {\r",
+									"                User.find({}).populate().exec((error, response) => {\r",
+									"                    error ? reject(error) : resolve(response);\r",
+									"                })\r",
+									"            })\r",
+									"        },\r",
+									"        currentUser: async (root, args, {user}) => {\r",
+									"            if(!user){\r",
+									"                throw new ValidationError([{\r",
+									"                    key: 'user',\r",
+									"                    message: 'user_not_authenticated',\r",
+									"                }])\r",
+									"            }\r",
+									"            return await User.findById(user._id);   \r",
+									"        }\r",
+									"    },\r",
+									"    Mutation: {\r",
+									"        addUser: async (root, {firstName, lastName, email, userType, password}) => {\r",
+									"\r",
+									"            let errors = [];\r",
+									"            if(validator.isEmpty(firstName)){\r",
+									"                errors.push({\r",
+									"                    key: 'firstName',\r",
+									"                    message: 'is_empty',\r",
+									"                })    \r",
+									"            }\r",
+									"\r",
+									"            if(validator.isEmpty(lastName)){\r",
+									"                errors.push({\r",
+									"                    key: 'lastName',\r",
+									"                    message: 'is_empty',\r",
+									"                })    \r",
+									"            }\r",
+									"\r",
+									"            if(!validator.isEmail(email)){\r",
+									"                errors.push({\r",
+									"                    key: 'email',\r",
+									"                    message: 'email_not_valid',\r",
+									"                })    \r",
+									"            }\r",
+									"            \r",
+									"            if(!validator.isLength(password, {min: 6, max: 20})){\r",
+									"                errors.push({\r",
+									"                    key: 'password',\r",
+									"                    message: 'password_length',\r",
+									"                })    \r",
+									"            }\r",
+									"\r",
+									"            if(errors.length){\r",
+									"                throw new ValidationError(errors);\r",
+									"            }\r",
+									"\r",
+									"            const newUser = await new User({\r",
+									"                firstName, \r",
+									"                lastName,\r",
+									"                email, \r",
+									"                userType,\r",
+									"                password: await bcrypt.hash(password, 10)\r",
+									"            });\r",
+									"            if(!newUser){\r",
+									"                throw new Error(`Cannot create user ${email}`)\r",
+									"            }\r",
+									"            let savedUser = null;\r",
+									"            try {\r",
+									"                savedUser = await newUser.save();        \r",
+									"            } catch (e) {\r",
+									"                 if(e.code === 11000){\r",
+									"                    throw new ValidationError([{\r",
+									"                        key: 'email',\r",
+									"                        message: 'email_in_use',\r",
+									"                    }]);\r",
+									"                 }\r",
+									"                 throw new Error(`Cannot create user ${email}`)\r",
+									"            }\r",
+									"            return jsonwebtoken.sign({\r",
+									"                    _id: newUser._id,\r",
+									"                    email: newUser.email,\r",
+									"                },\r",
+									"                process.env.JWT_SECRET,\r",
+									"                {\r",
+									"                    expiresIn: '1d'\r",
+									"            });\r",
+									"\r",
+									"        },\r",
+									"        login: async(root, {email, password}) => {\r",
+									"            const user = await User.findOne({email});\r",
+									"            if(!user){\r",
+									"                throw new Error(`Cannot find user with email: ${email}`)\r",
+									"            }\r",
+									"\r",
+									"            const valid = await bcrypt.compare(password, user.password);\r",
+									"\r",
+									"            if(!valid){\r",
+									"                throw new Error(`Cannot match password for email: ${email}`)\r",
+									"            }\r",
+									"\r",
+									"            return jsonwebtoken.sign(\r",
+									"                {\r",
+									"                    _id: user._id,\r",
+									"                    email: user.email,\r",
+									"                },\r",
+									"                process.env.JWT_SECRET,\r",
+									"                {\r",
+									"                    expiresIn: '1d'\r",
+									"                }\r",
+									"            )\r",
+									"        },\r",
+									"        deleteUser: (root, {_id}) => {\r",
+									"            return new Promise((resolve, reject) => {\r",
+									"                User.findByIdAndRemove({_id}).exec((error, response) => {\r",
+									"                    error ? reject(error): resolve(response);\r",
+									"                })\r",
+									"            })\r",
+									"        },\r",
+									"        editUser: async (root, {_id, firstName, lastName, password}, {user} ) => {\r",
+									"            if(!user){\r",
+									"                throw new Error(\"User is not authenticated\");\r",
+									"            }\r",
+									"            const response = await User.findByIdAndUpdate({_id}, {$set: {\r",
+									"                firstName, \r",
+									"                lastName, \r",
+									"                password, \r",
+									"            }}, {new: true}).exec();\r",
+									"            if(!response){\r",
+									"                throw new Error(`Cannot save user: ${_id}`);\r",
+									"            }\r",
+									"            return response;\r",
+									"        }\r",
+									"    }\r",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "user",
+							"host": [
+								"user"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "query",
+			"item": [
+				{
+					"name": "game",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"module.exports = async (_, {}, {models}) => {\r",
+									"    return models.Game.find();\r",
+									"};"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "game",
+							"host": [
+								"game"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "index",
+					"event": [
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									"const games = require(\"./games\");\r",
+									"\r",
+									"module.exports = {\r",
+									"\r",
+									"    games\r",
+									"    \r",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "index",
+							"host": [
+								"index"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "API/Game",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": ""
+				}
+			},
+			"response": []
+		}
+	]
+}
